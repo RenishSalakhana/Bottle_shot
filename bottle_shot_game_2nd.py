@@ -1,4 +1,4 @@
-
+# this game written in python
 import pygame, sys
 from math import cos, sin, pi, degrees, radians
 
