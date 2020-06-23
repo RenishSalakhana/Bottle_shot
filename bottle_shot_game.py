@@ -1,4 +1,4 @@
-
+# this game written in python
 import pygame, sys
 from math import cos, sin, pi, degrees, radians
 
@@ -6,14 +6,14 @@ pygame.init()
 
 monitor_size = (pygame.display.Info().current_w,pygame.display.Info().current_h)
 win = pygame.display.set_mode((1280, 720), pygame.RESIZABLE)
+pygame.mouse.set_visible(0)
+pygame.display.set_caption("bottle shoot game for shivanshu and shivansh")
 
-pygame.display.set_caption("bolle shoot game for shivansh")
-### image load
 bg_img = pygame.image.load('data/bg_image.jpg')
 gun_load = pygame.image.load('data/transparent-gun-9mm.png')
 bullet_load = pygame.image.load('data/9mm_bullet.png')
 
-### sfg load
+
 fir_sound = pygame.mixer.Sound('data/bullet.wav')
 hit_sound = pygame.mixer.Sound('data/glassBreak.wav')
 cheer_sound = pygame.mixer.Sound('data/cheering.wav')
@@ -21,9 +21,10 @@ cheer_sound = pygame.mixer.Sound('data/cheering.wav')
 clock = pygame.time.Clock()
 
 score = 0
-
-### image center rotation
+###################################################################################################
+### global function
 def blitRotate(surf, image, pos, originPos, angle):
+
     # calcaulate the axis aligned bounding box of the rotated image
     w, h       = image.get_size()
     box        = [pygame.math.Vector2(p) for p in [(0, 0), (w, 0), (w, -h), (0, -h)]]
@@ -44,6 +45,57 @@ def blitRotate(surf, image, pos, originPos, angle):
 
     # rotate and blit the image
     surf.blit(rotated_image, origin)
+        
+def gameOver():
+    global level
+    w, h = win.get_size()
+    font = pygame.font.Font('freesansbold.ttf', 50)
+    score_str = font.render("level "+str(level+1)+' complete ', True, (0,0,0))
+    textRect = score_str.get_rect()
+    textRect.center = (w//2, h//2)
+    win.blit(score_str, textRect)
+    pygame.display.update()
+
+def level_fn(level):
+    global greenbottles
+    dist={0:(0,0), 1:(1024,0), 2:(1024,720), 3:(0,720)}
+    for i in range((level%4)+1):
+        greenbottles.append(bottleClass(dist[i], i+1))    
+    
+def redrawGameWindwow():
+    global winn, level, score
+    w, h = win.get_size()
+    path = (int(w * 0.1), int(h * 0.1), int(w * 0.8), int(h * 0.8))
+    pygame.draw.rect(win, (200,0,0), path, 2)
+    
+    for gb in greenbottles:
+        gb.draw(win)
+    ##### winning logic
+    if greenbottles==[] and winn:
+        cheer_sound.play()
+        gun.visible = False
+        winn = False
+    if not winn:
+        gameOver()
+        pygame.time.delay(4000)
+        level += 1
+        if level % 4==0:
+            score += 150
+            gun.vel += 2
+        level_fn(level)
+        winn = True
+        gun.visible = True
+            
+    
+    gun.draw(win)
+    
+    text = font.render('Score: ' + str(score), 4, (0, 0, 0))
+    win.blit(text, (win.get_width()*0.85,20))
+    text = font.render('Level: ' + str(level+1), 4, (0, 0, 0))
+    win.blit(text, (win.get_width()*0.05,20))
+
+    pygame.display.update()
+
 
 ##########################################################################
 class bottleClass(object):
@@ -90,6 +142,7 @@ class bottleClass(object):
             if self.y is not path[3]:
                 self.y = path[3]
         else:
+
             self.bottle_img = pygame.transform.rotozoom(self.bottle,0, 0.2)
             self.y -= self.vel
             if self.x is not 0:
@@ -99,93 +152,79 @@ class bottleClass(object):
                 self.y = 0
 
         win.blit(self.bottle_img, (self.pos[0] + self.x, self.pos[1] + self.y))
-        #pygame.draw.rect(win, (0,255,255), (self.pos[0] + self.x, self.pos[1] + self.y, self.b_w, self.b_h), 2)
+##        pygame.draw.rect(win, (0,255,255), (self.pos[0] + self.x, self.pos[1] + self.y, self.b_w, self.b_h), 2)
 
         
 ############################################################################################
         
 class gunClass(object):
     def __init__(self):
-        self.angle = 0
-        self.vel = 0
+        self.g_angle = 0        # in degree
+        self.b_angle = 0        # in radian
+        self.vel =1
+        self.time = 0
+
         self.gun_img = pygame.transform.rotozoom(gun_load,1, 0.3)
-        self.bulletx=0
+        self.bullet_img = pygame.transform.rotozoom(bullet_load, 0,0.1)
+
+        self.bulletx=2000
         self.bullety=0
+        self.startP = [0,0]
+        self.visible = True     
         
 
     def draw(self, win):
-        w, h = win.get_size()
-        gun_w, gun_h = self.gun_img.get_size()
-        blitRotate(win, self.gun_img, (w//2,h//2), (gun_w//2,gun_h//2), self.angle)
-        self.angle += self.vel
-        if self.angle >= 360:
-            self.angle = 0
+        if self.visible:
+            w, h = win.get_size()
+            gun_w, gun_h = self.gun_img.get_size()
+            blitRotate(win, self.gun_img, (w//2,h//2), (gun_w//2,gun_h//2), self.g_angle)
+            self.g_angle += self.vel
+            if self.g_angle >= 360:
+                self.g_angle = 0
+            ### for bullet
+            if self.bulletx < w+20 and self.bulletx > -20 and self.bullety < h+20 and self.bullety > -20  :
+                self.bulletPath()
+                self.time += 2
+            else:
+                self.time = 0
 
-    def bulletPath(self, startx, starty, angle, time):
-        velx = cos(angle) * 10
-        vely = sin(angle) * 10
+    def bulletPath(self):
+        if self.visible:
+            velx = cos(self.b_angle) * 20
+            vely = sin(self.b_angle) * 20
 
-        distX = velx * time
-        distY = vely * time
+            distX = velx * self.time
+            distY = vely * self.time
 
-        self.bulletx = round(distX + startx)
-        self.bullety = round(starty - distY)
-
+            self.bulletx = round(self.startP[0] + distX)
+            self.bullety = round(self.startP[1] - distY)
+            b_w,b_h=self.bullet_img.get_size()
+            win.blit(self.bullet_img, (gun.bulletx-b_w//2, gun.bullety-b_h//2))
 
     def shoot(self,win):
-        fir_sound.play()
-        w, h = win.get_size()
-        self.bulletx = w//2
-        self.bullety = h//2
-        return radians(self.angle)
+        if self.time is 0:
+            fir_sound.play()
+            w, h = win.get_size()
+            self.startP[0]= int(w//2 + 90 * cos(radians(23+self.g_angle))) #newX = oldX + dist * cos(angle)
+            self.startP[1]= int(h//2 - 90 * sin(radians(23+self.g_angle)))
+            self.bullet_img = pygame.transform.rotozoom(bullet_load, -90+self.g_angle,0.1)
+            self.bulletx = round(self.startP[0])
+            self.bullety = round(self.startP[1])
+            
+            self.b_angle = radians(self.g_angle)
 
         
 #############################################################################################
-        
-def gameOver():
-    w, h = win.get_size()
-    font = pygame.font.Font('freesansbold.ttf', 50)
-    score_str = font.render("Score :"+str(score), True, (0,0,255))
-    win.blit(score_str, (w//2, h//2))
-    
-def redrawGameWindwow():
-    global winn
-    w, h = win.get_size()
-    path = (int(w * 0.1), int(h * 0.1), int(w * 0.8), int(h * 0.8))
-    pygame.draw.rect(win, (200,0,0), path, 2)
-    
-    for gb in greenbottles:
-        gb.draw(win)
-    ##### winning logic
-    if greenbottles==[] and winn:
-        gun.vel = 0
-        cheer_sound.play()
-        winn = False
-    if not winn:
-        gameOver()
-    
-    gun.draw(win)
-    
-    text = font.render('Score: ' + str(score), 1, (0, 0, 0))
-    win.blit(text, (win.get_width()*0.9,10))
-
-    pygame.display.update()
-
-
-######################################################################################################
 #main loop
 font = pygame.font.SysFont('comicsans',30 , True)
 
 run = True
 fullscreen = False
-dist={1:(0,0), 2:(1024,0), 3:(1024,720), 4:(0,720)}
 greenbottles=[]
-for i in range(1,2):
-    greenbottles.append(bottleClass(dist[i], i))
+level = 0
 gun = gunClass()
-time = 0
-angle = 0
 winn = True
+level_fn(level)
 
 while run:
     clock.tick(27)
@@ -216,23 +255,16 @@ while run:
 
     keys = pygame.key.get_pressed()
 
-    if keys[pygame.K_SPACE] and time == 0:
-        angle = gun.shoot(win)
-        gun.bulletPath(win.get_width()//2, win.get_height()//2, angle, time)
-
-##    pygame.draw.circle(win, (0,255,255), (gun.bulletx, gun.bullety), 10)
-    bullet_img = pygame.transform.rotozoom(bullet_load, -90,0.1)
-    win.blit(bullet_img, (gun.bulletx+70, gun.bullety-45))
-    if gun.bulletx < win.get_width()+20 and gun.bulletx > 0 and gun.bullety < win.get_height()+20 and gun.bullety > 0  :
-        time += 2
-        gun.bulletPath(win.get_width()//2, win.get_height()//2, angle, time)
-    else:
-        time = 0
+    if keys[pygame.K_SPACE]:
+        gun.shoot(win)
+    
+        
     for gb in greenbottles:
         if (gb.pos[0] + gb.x < gun.bulletx and gun.bulletx < gb.pos[0] + gb.x + gb.b_w) and (gb.pos[1]+gb.y < gun.bullety and gun.bullety < gb.pos[1]+gb.y+gb.b_h):
-            score += 1
+            score += 10
             hit_sound.play()
             greenbottles.pop(greenbottles.index(gb))
+            
     redrawGameWindwow()    
 pygame.quit()
 
